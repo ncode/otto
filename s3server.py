@@ -34,17 +34,16 @@ S3 client with this module:
 
 """
 
+from storage import FsObjectStorage
+from twisted.python import log
 from cyclone import escape
 from cyclone import web
-from cyclone import httpserver
-from twisted.python import log
 import datetime
-import bisect
 import hashlib
-import os
-import os.path
+import bisect
 import urllib
 import sys
+import os
 
 class S3Application(web.Application):
     """Implementation of an S3-like storage server based on local files.
@@ -63,6 +62,7 @@ class S3Application(web.Application):
         if not os.path.exists(self.directory):
             os.makedirs(self.directory)
         self.bucket_depth = bucket_depth
+        self.storage = FsObjectStorage()
 
 
 class BaseRequestHandler(web.RequestHandler):
@@ -73,12 +73,10 @@ class BaseRequestHandler(web.RequestHandler):
         self.set_header("Content-Type", "application/xml; charset=UTF-8")
         name = value.keys()[0]
         parts = []
-        parts.append('<' + escape.utf8(name) +
-                     ' xmlns="http://doc.s3.amazonaws.com/2006-03-01">')
+        parts.append('<%s xmlns="http://doc.s3.amazonaws.com/2006-03-01">' % escape.utf8(name))
         self._render_parts(value.values()[0], parts)
-        parts.append('</' + escape.utf8(name) + '>')
-        self.finish('<?xml version="1.0" encoding="UTF-8"?>\n' +
-                    ''.join(parts))
+        parts.append('</%s>' % escape.utf8(name))
+        self.finish('<?xml version="1.0" encoding="UTF-8"?>\n %s' % ''.join(parts))
 
     def _render_parts(self, value, parts=[]):
         if isinstance(value, basestring):
@@ -99,16 +97,7 @@ class BaseRequestHandler(web.RequestHandler):
             raise Exception("Unknown S3 value type %r", value)
 
     def _object_path(self, bucket, object_name):
-        if self.application.bucket_depth < 1:
-            return os.path.abspath(os.path.join(
-                self.application.directory, bucket, object_name))
-        hash = hashlib.md5(object_name).hexdigest()
-        path = os.path.abspath(os.path.join(
-            self.application.directory, bucket))
-        for i in range(self.application.bucket_depth):
-            path = os.path.join(path, hash[:2 * (i + 1)])
-        return os.path.join(path, object_name)
-
+        return os.path.abspath(os.path.join(self.application.directory, bucket, object_name))
 
 class RootHandler(BaseRequestHandler):
     def get(self):
@@ -119,24 +108,20 @@ class RootHandler(BaseRequestHandler):
             info = os.stat(path)
             buckets.append({
                 "Name": name,
-                "CreationDate": datetime.datetime.utcfromtimestamp(
-                    info.st_ctime),
+                "CreationDate": datetime.datetime.utcfromtimestamp(info.st_ctime),
             })
         self.render_xml({"ListAllMyBucketsResult": {
             "Buckets": {"Bucket": buckets},
         }})
-
 
 class BucketHandler(BaseRequestHandler):
     def get(self, bucket_name):
         prefix = self.get_argument("prefix", u"")
         marker = self.get_argument("marker", u"")
         max_keys = int(self.get_argument("max-keys", 50000))
-        path = os.path.abspath(os.path.join(self.application.directory,
-                                            bucket_name))
+        path = os.path.abspath(os.path.join(self.application.directory, bucket_name))
         terse = int(self.get_argument("terse", 0))
-        if not path.startswith(self.application.directory) or \
-           not os.path.isdir(path):
+        if not path.startswith(self.application.directory) or not os.path.isdir(path):
             raise web.HTTPError(404)
         object_names = []
         for root, dirs, files in os.walk(path):
@@ -167,12 +152,12 @@ class BucketHandler(BaseRequestHandler):
             if not terse:
                 info = os.stat(object_path)
                 c.update({
-                    "LastModified": datetime.datetime.utcfromtimestamp(
-                        info.st_mtime),
+                    "LastModified": datetime.datetime.utcfromtimestamp(info.st_mtime),
                     "Size": info.st_size,
                 })
             contents.append(c)
             marker = object_name
+
         self.render_xml({"ListBucketResult": {
             "Name": bucket_name,
             "Prefix": prefix,
@@ -186,8 +171,7 @@ class BucketHandler(BaseRequestHandler):
         log.msg('bruxao')
         path = os.path.abspath(os.path.join(
             self.application.directory, bucket_name))
-        if not path.startswith(self.application.directory) or \
-           os.path.exists(path):
+        if not path.startswith(self.application.directory) or os.path.exists(path):
             raise web.HTTPError(403)
         os.makedirs(path)
         self.finish()
@@ -195,8 +179,7 @@ class BucketHandler(BaseRequestHandler):
     def delete(self, bucket_name):
         path = os.path.abspath(os.path.join(
             self.application.directory, bucket_name))
-        if not path.startswith(self.application.directory) or \
-           not os.path.isdir(path):
+        if not path.startswith(self.application.directory) or not os.path.isdir(path):
             raise web.HTTPError(404)
         if len(os.listdir(path)) > 0:
             raise web.HTTPError(403)
@@ -204,18 +187,15 @@ class BucketHandler(BaseRequestHandler):
         self.set_status(204)
         self.finish()
 
-
 class ObjectHandler(BaseRequestHandler):
     def get(self, bucket, object_name):
         object_name = urllib.unquote(object_name)
         path = self._object_path(bucket, object_name)
-        if not path.startswith(self.application.directory) or \
-           not os.path.isfile(path):
+        if not path.startswith(self.application.directory) or not os.path.isfile(path):
             raise web.HTTPError(404)
         info = os.stat(path)
         self.set_header("Content-Type", "application/unknown")
-        self.set_header("Last-Modified", datetime.datetime.utcfromtimestamp(
-            info.st_mtime))
+        self.set_header("Last-Modified", datetime.datetime.utcfromtimestamp(info.st_mtime))
         object_file = open(path, "r")
         try:
             self.finish(object_file.read())
@@ -226,8 +206,7 @@ class ObjectHandler(BaseRequestHandler):
         object_name = urllib.unquote(object_name)
         bucket_dir = os.path.abspath(os.path.join(
             self.application.directory, bucket))
-        if not bucket_dir.startswith(self.application.directory) or \
-           not os.path.isdir(bucket_dir):
+        if not bucket_dir.startswith(self.application.directory) or not os.path.isdir(bucket_dir):
             raise web.HTTPError(404)
         path = self._object_path(bucket, object_name)
         if not path.startswith(bucket_dir) or os.path.isdir(path):
@@ -243,8 +222,7 @@ class ObjectHandler(BaseRequestHandler):
     def delete(self, bucket, object_name):
         object_name = urllib.unquote(object_name)
         path = self._object_path(bucket, object_name)
-        if not path.startswith(self.application.directory) or \
-           not os.path.isfile(path):
+        if not path.startswith(self.application.directory) or not os.path.isfile(path):
             raise web.HTTPError(404)
         os.unlink(path)
         self.set_status(204)
