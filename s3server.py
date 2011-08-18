@@ -39,8 +39,6 @@ from twisted.python import log
 from cyclone import escape
 from cyclone import web
 import datetime
-import hashlib
-import bisect
 import urllib
 import sys
 import os
@@ -59,8 +57,11 @@ class S3Application(web.Application):
             (r"/([^/]+)/", BucketHandler),
         ])
         self.directory = os.path.abspath(root_directory)
+        self.tmp = '/tmp/cancer'
         if not os.path.exists(self.directory):
             os.makedirs(self.directory)
+        if not os.path.exists(self.tmp):
+            os.makedirs(self.tmp)
         self.bucket_depth = bucket_depth
         self.storage = FsObjectStorage.ObjectStorage()
 
@@ -110,53 +111,10 @@ class BucketHandler(BaseRequestHandler):
         prefix = self.get_argument("prefix", u"")
         marker = self.get_argument("marker", u"")
         max_keys = int(self.get_argument("max-keys", 50000))
-        path = os.path.abspath(os.path.join(self.application.directory, bucket_name))
         terse = int(self.get_argument("terse", 0))
-        if not path.startswith(self.application.directory) or not os.path.isdir(path):
+        if not self.application.storage.is_bucket(bucket_name):
             raise web.HTTPError(404)
-        object_names = []
-        for root, dirs, files in os.walk(path):
-            for file_name in files:
-                object_names.append(os.path.join(root, file_name))
-        skip = len(path) + 1
-        for i in range(self.application.bucket_depth):
-            skip += 2 * (i + 1) + 1
-        object_names = [n[skip:] for n in object_names]
-        object_names.sort()
-        contents = []
-
-        start_pos = 0
-        if marker:
-            start_pos = bisect.bisect_right(object_names, marker, start_pos)
-        if prefix:
-            start_pos = bisect.bisect_left(object_names, prefix, start_pos)
-
-        truncated = False
-        for object_name in object_names[start_pos:]:
-            if not object_name.startswith(prefix):
-                break
-            if len(contents) >= max_keys:
-                truncated = True
-                break
-            object_path = self._object_path(bucket_name, object_name)
-            c = {"Key": object_name}
-            if not terse:
-                info = os.stat(object_path)
-                c.update({
-                    "LastModified": datetime.datetime.utcfromtimestamp(info.st_mtime),
-                    "Size": info.st_size,
-                })
-            contents.append(c)
-            marker = object_name
-
-        self.render_xml({"ListBucketResult": {
-            "Name": bucket_name,
-            "Prefix": prefix,
-            "Marker": marker,
-            "MaxKeys": max_keys,
-            "IsTruncated": truncated,
-            "Contents": contents,
-        }})
+        self.render_xml({"ListBucketResult": self.application.storage.list_objects(bucket_name, marker, prefix, max_keys, terse)})
 
     def put(self, bucket_name):
         log.msg('Creating bucket %s' % bucket_name)
