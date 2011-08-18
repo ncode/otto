@@ -57,8 +57,8 @@ class ObjectStorage(object):
                 break
             content = {"Key": _object}
             if not terse:
-                _stat = os.stat(self.__object_path__(bucket, _object))
-                c.update({
+                _stat = os.stat(self.__object_path__(bucket_name, _object))
+                content.update({
                     "LastModified": datetime.datetime.utcfromtimestamp(_stat.st_mtime),
                     "Size": _stat.st_size,
                 })
