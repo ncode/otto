@@ -89,9 +89,9 @@ class BaseRequestHandler(web.RequestHandler):
                 if not isinstance(subvalue, list):
                     subvalue = [subvalue]
                 for subsubvalue in subvalue:
-                    parts.append('<' + escape.utf8(name) + '>')
+                    parts.append('<%s>' % escape.utf8(name))
                     self._render_parts(subsubvalue, parts)
-                    parts.append('</' + escape.utf8(name) + '>')
+                    parts.append('</%s>' % escape.utf8(name))
         else:
             raise Exception("Unknown S3 value type %r", value)
 
@@ -118,65 +118,46 @@ class BucketHandler(BaseRequestHandler):
 
     def put(self, bucket_name):
         log.msg('Creating bucket %s' % bucket_name)
-        path = os.path.abspath(os.path.join(
-            self.application.directory, bucket_name))
-        if not path.startswith(self.application.directory) or os.path.exists(path):
+        if self.application.storage.is_bucket(bucket_name):
             raise web.HTTPError(403)
-        os.makedirs(path)
+        self.application.storage.create_bucket(bucket_name)
         self.finish()
 
     def delete(self, bucket_name):
         log.msg('Deleting bucket %s' % bucket_name)
-        path = os.path.abspath(os.path.join(
-            self.application.directory, bucket_name))
-        if not path.startswith(self.application.directory) or not os.path.isdir(path):
+        if not self.application.storage.is_bucket(bucket_name):
             raise web.HTTPError(404)
-        if len(os.listdir(path)) > 0:
+        if len(self.application.storage.list_objects(bucket_name)['Contents']) > 0:
             raise web.HTTPError(403)
-        os.rmdir(path)
+        self.application.storage.delete_bucket(bucket_name)
         self.set_status(204)
         self.finish()
 
 class ObjectHandler(BaseRequestHandler):
-    def get(self, bucket, object_name):
-        log.msg('Accessing object %s from bucket %s' % (object_name, bucket))
+    def get(self, bucket_name, object_name):
+        log.msg('Accessing object %s from bucket %s' % (object_name, bucket_name))
         object_name = urllib.unquote(object_name)
-        path = self._object_path(bucket, object_name)
-        if not path.startswith(self.application.directory) or not os.path.isfile(path):
+        if not self.application.storage.is_object(bucket_name, object_name):
             raise web.HTTPError(404)
-        info = os.stat(path)
         self.set_header("Content-Type", "application/unknown")
-        self.set_header("Last-Modified", datetime.datetime.utcfromtimestamp(info.st_mtime))
-        object_file = open(path, "r")
-        try:
-            self.finish(object_file.read())
-        finally:
-            object_file.close()
+        self.set_header("Last-Modified", self.application.storage.stat_object(bucket_name, object_name)['LastModified'])
+        self.finish(self.application.storage.read_object(bucket_name, object_name))
 
-    def put(self, bucket, object_name):
-        log.msg('Writing object %s on bucket %s' % (object_name, bucket))
+    def put(self, bucket_name, object_name):
+        log.msg('Writing object %s on bucket %s' % (object_name, bucket_name))
         object_name = urllib.unquote(object_name)
-        bucket_dir = os.path.abspath(os.path.join(
-            self.application.directory, bucket))
-        if not bucket_dir.startswith(self.application.directory) or not os.path.isdir(bucket_dir):
+        if not self.application.storage.is_bucket(bucket_name):
             raise web.HTTPError(404)
-        path = self._object_path(bucket, object_name)
-        if not path.startswith(bucket_dir) or os.path.isdir(path):
+        if self.application.storage.is_bucket(bucket_name, object_name):
             raise web.HTTPError(403)
-        directory = os.path.dirname(path)
-        if not os.path.exists(directory):
-            os.makedirs(directory)
-        object_file = open(path, "w")
-        object_file.write(self.request.body)
-        object_file.close()
+        self.application.storage.write_object(bucket_name, object_name, self.request.body)
         self.finish()
 
-    def delete(self, bucket, object_name):
-        log.msg('Removing object %s from bucket %s' % (object_name, bucket))
+    def delete(self, bucket_name, object_name):
+        log.msg('Removing object %s from bucket %s' % (object_name, bucket_name))
         object_name = urllib.unquote(object_name)
-        path = self._object_path(bucket, object_name)
-        if not path.startswith(self.application.directory) or not os.path.isfile(path):
+        if not self.application.storage.is_object(bucket_name, object_name):
             raise web.HTTPError(404)
-        os.unlink(path)
+        self.application.storage.delete_object(bucket_name, object_name)
         self.set_status(204)
         self.finish()

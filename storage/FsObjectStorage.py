@@ -13,8 +13,8 @@ class ObjectStorage(object):
             return os.path.abspath(os.path.join(self.directory, bucket_name, object_name))
         return os.path.abspath(os.path.join(self.directory, bucket_name))
 
-    def is_bucket(self, bucket_name):
-        if os.path.isdir(self.__object_path__(bucket_name)):
+    def is_bucket(self, bucket_name, object_name = None):
+        if os.path.isdir(self.__object_path__(bucket_name, object_name)):
             return True
         return False
 
@@ -25,18 +25,23 @@ class ObjectStorage(object):
     def list_buckets(self):
         buckets = []
         for bucket in os.listdir(self.directory):
-            info = os.stat(self.__object_path__(bucket))
             buckets.append({
-                "Name": bucket,
-                "CreationDate": datetime.datetime.utcfromtimestamp(info.st_ctime),
+                'Name': bucket,
+                'CreationDate': datetime.datetime.utcfromtimestamp(os.stat(self.__object_path__(bucket)).st_ctime),
             })
         return buckets
 
     def create_bucket(self, bucket_name):
-        pass
+        _bucket = self.__object_path__(bucket_name)
+        if not os.path.isdir(_bucket):
+            os.makedirs(_bucket)
+            log.msg('Created bucket %s' % bucket_name)
 
     def delete_bucket(self, bucket_name):
-        pass
+        _bucket = self.__object_path__(bucket_name)
+        if os.path.isdir(_bucket):
+            os.rmdir(_bucket)
+            log.msg('Delete bucket %s' % bucket_name)
 
     def list_objects(self, bucket_name, marker = None, prefix = None, max_keys = 5000, terse = None):
         objects = []
@@ -55,20 +60,42 @@ class ObjectStorage(object):
             if len(contents) >= max_keys:
                 truncated = True
                 break
-            content = {"Key": _object}
+            content = {'Key': _object}
             if not terse:
                 _stat = os.stat(self.__object_path__(bucket_name, _object))
                 content.update({
-                    "LastModified": datetime.datetime.utcfromtimestamp(_stat.st_mtime),
-                    "Size": _stat.st_size,
+                    'LastModified': datetime.datetime.utcfromtimestamp(_stat.st_mtime),
+                    'Size': _stat.st_size,
                 })
             contents.append(content)
             marker = _object
 
-        return {'Name': bucket_name, 'Prefix': prefix, 'Marker': marker, 'MaxKeys': max_keys, 'IsTruncated': truncated, 'Contents': contents}
+        return { 
+                    'Name': bucket_name, 
+                    'Prefix': prefix, 
+                    'Marker': marker, 
+                    'MaxKeys': max_keys, 
+                    'IsTruncated': truncated, 
+                    'Contents': contents
+                }
 
-    def write_object(self, bucket_name, object_name):
-        pass
+    def stat_object(self, bucket_name, object_name):
+        _stat = os.stat(self.__object_path__(bucket_name, object_name))
+        return {
+                    'LastModified': datetime.datetime.utcfromtimestamp(_stat.st_mtime), 
+                    'CreationDate': datetime.datetime.utcfromtimestamp(_stat.st_ctime),
+                    'Size': _stat.st_size
+               }
+
+    def read_object(self, bucket_name, object_name):
+        return open(self.__object_path__(bucket_name, object_name)).read()
+
+    def write_object(self, bucket_name, object_name, content):
+        open(self.__object_path__(bucket_name, object_name), 'w').write(content)
+        log.msg('Created object %s on bucket %s' % (object_name, bucket_name))
 
     def delete_object(self, bucket_name, object_name):
-        pass
+        _object = self.__object_path__(bucket_name, object_name)
+        if os.path.isfile(_object):
+            os.unlink(_object)
+            log.msg('Created object %s on bucket %s' % (object_name, bucket_name))
