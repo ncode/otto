@@ -62,12 +62,10 @@ class S3Application(web.Application):
         if not os.path.exists(self.directory):
             os.makedirs(self.directory)
         self.bucket_depth = bucket_depth
-        self.storage = FsObjectStorage()
-
+        self.storage = FsObjectStorage.ObjectStorage()
 
 class BaseRequestHandler(web.RequestHandler):
 #    SUPPORTED_METHODS = ("PUT", "GET", "DELETE", "HEAD")
-
     def render_xml(self, value):
         assert isinstance(value, dict) and len(value) == 1
         self.set_header("Content-Type", "application/xml; charset=UTF-8")
@@ -101,21 +99,14 @@ class BaseRequestHandler(web.RequestHandler):
 
 class RootHandler(BaseRequestHandler):
     def get(self):
-        names = os.listdir(self.application.directory)
-        buckets = []
-        for name in names:
-            path = os.path.join(self.application.directory, name)
-            info = os.stat(path)
-            buckets.append({
-                "Name": name,
-                "CreationDate": datetime.datetime.utcfromtimestamp(info.st_ctime),
-            })
+        log.msg('Accessing root directory')
         self.render_xml({"ListAllMyBucketsResult": {
-            "Buckets": {"Bucket": buckets},
+            "Buckets": {"Bucket": self.application.storage.list_buckets()},
         }})
 
 class BucketHandler(BaseRequestHandler):
     def get(self, bucket_name):
+        log.msg('Accessing bucket %s' % bucket_name)
         prefix = self.get_argument("prefix", u"")
         marker = self.get_argument("marker", u"")
         max_keys = int(self.get_argument("max-keys", 50000))
@@ -168,7 +159,7 @@ class BucketHandler(BaseRequestHandler):
         }})
 
     def put(self, bucket_name):
-        log.msg('bruxao')
+        log.msg('Creating bucket %s' % bucket_name)
         path = os.path.abspath(os.path.join(
             self.application.directory, bucket_name))
         if not path.startswith(self.application.directory) or os.path.exists(path):
@@ -177,6 +168,7 @@ class BucketHandler(BaseRequestHandler):
         self.finish()
 
     def delete(self, bucket_name):
+        log.msg('Deleting bucket %s' % bucket_name)
         path = os.path.abspath(os.path.join(
             self.application.directory, bucket_name))
         if not path.startswith(self.application.directory) or not os.path.isdir(path):
@@ -189,6 +181,7 @@ class BucketHandler(BaseRequestHandler):
 
 class ObjectHandler(BaseRequestHandler):
     def get(self, bucket, object_name):
+        log.msg('Accessing object %s from bucket %s' % (object_name, bucket))
         object_name = urllib.unquote(object_name)
         path = self._object_path(bucket, object_name)
         if not path.startswith(self.application.directory) or not os.path.isfile(path):
@@ -203,6 +196,7 @@ class ObjectHandler(BaseRequestHandler):
             object_file.close()
 
     def put(self, bucket, object_name):
+        log.msg('Writing object %s on bucket %s' % (object_name, bucket))
         object_name = urllib.unquote(object_name)
         bucket_dir = os.path.abspath(os.path.join(
             self.application.directory, bucket))
@@ -220,6 +214,7 @@ class ObjectHandler(BaseRequestHandler):
         self.finish()
 
     def delete(self, bucket, object_name):
+        log.msg('Removing object %s from bucket %s' % (object_name, bucket))
         object_name = urllib.unquote(object_name)
         path = self._object_path(bucket, object_name)
         if not path.startswith(self.application.directory) or not os.path.isfile(path):
