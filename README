@@ -10,6 +10,6 @@ $ twistd -ny se.tac
 TESTING:
 create bucket: $ curl --request PUT "http://localhost:4000/meh/"
 
-put some data (README file): curl --data "@README" --request PUT --header "Content-Type: text/plain" "http://localhost:4000/meh/README"
+put some data (README file): curl --data-binary "@README" --request PUT --header "Content-Type: text/plain" "http://localhost:4000/meh/README"
 
 retrieve: curl http://localhost:4000/meh/README
