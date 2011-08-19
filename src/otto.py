@@ -37,7 +37,8 @@ S3 client with this module:
 
 """
 
-from storage import FsObjectStorage
+#from storage import FsObjectStorage as storage
+from storage import RiakObjectStorage as storage
 from twisted.python import log
 from cyclone import escape
 from cyclone import web
@@ -62,7 +63,7 @@ class S3Application(web.Application):
         self.tmp_directory = tmp_directory
         if not os.path.exists(self.tmp_directory):
             os.makedirs(self.tmp_directory)
-        self.storage = FsObjectStorage.ObjectStorage()
+        self.storage = storage.ObjectStorage()
 
 class BaseRequestHandler(web.RequestHandler):
 #    SUPPORTED_METHODS = ("PUT", "GET", "DELETE", "HEAD")
@@ -94,14 +95,12 @@ class BaseRequestHandler(web.RequestHandler):
         else:
             raise Exception("Unknown S3 value type %r", value)
 
-    def _object_path(self, bucket, object_name):
-        return os.path.abspath(os.path.join(self.application.directory, bucket, object_name))
-
 class RootHandler(BaseRequestHandler):
     def get(self):
         log.msg('Accessing root directory')
+        buckets = yield self.application.storage.list_buckets()
         self.render_xml({"ListAllMyBucketsResult": {
-            "Buckets": {"Bucket": self.application.storage.list_buckets()},
+            "Buckets": {"Bucket": buckets},
         }})
 
 class BucketHandler(BaseRequestHandler):
@@ -111,22 +110,27 @@ class BucketHandler(BaseRequestHandler):
         marker = self.get_argument("marker", u"")
         max_keys = int(self.get_argument("max-keys", 50000))
         terse = int(self.get_argument("terse", 0))
-        if not self.application.storage.is_bucket(bucket_name):
+        status = yield self.application.storage.is_bucket(bucket_name)
+        if not status:
             raise web.HTTPError(404)
         self.render_xml({"ListBucketResult": self.application.storage.list_objects(bucket_name, marker, prefix, max_keys, terse)})
 
     def put(self, bucket_name):
         log.msg('Creating bucket %s' % bucket_name)
-        if self.application.storage.is_bucket(bucket_name):
+        log.msg('Lalala %s' % self.application.storage.is_bucket(bucket_name))
+        status = yield self.application.storage.is_bucket(bucket_name)
+        if not status:
             raise web.HTTPError(403)
         self.application.storage.create_bucket(bucket_name)
         self.finish()
 
     def delete(self, bucket_name):
         log.msg('Deleting bucket %s' % bucket_name)
-        if not self.application.storage.is_bucket(bucket_name):
+        status = yield self.application.storage.is_bucket(bucket_name)
+        if not status:
             raise web.HTTPError(404)
-        if len(self.application.storage.list_objects(bucket_name)['Contents']) > 0:
+        status = yield self.application.storage.list_objects(bucket_name)
+        if len(status['Contents']) > 0:
             raise web.HTTPError(403)
         self.application.storage.delete_bucket(bucket_name)
         self.set_status(204)
@@ -136,7 +140,8 @@ class ObjectHandler(BaseRequestHandler):
     def get(self, bucket_name, object_name):
         log.msg('Accessing object %s from bucket %s' % (object_name, bucket_name))
         object_name = urllib.unquote(object_name)
-        if not self.application.storage.is_object(bucket_name, object_name):
+        status = yield self.application.storage.is_object(bucket_name, object_name)
+        if not status:
             raise web.HTTPError(404)
         self.set_header("Content-Type", "application/unknown")
         self.set_header("Last-Modified", self.application.storage.stat_object(bucket_name, object_name)['LastModified'])
@@ -145,9 +150,11 @@ class ObjectHandler(BaseRequestHandler):
     def put(self, bucket_name, object_name):
         log.msg('Writing object %s on bucket %s' % (object_name, bucket_name))
         object_name = urllib.unquote(object_name)
-        if not self.application.storage.is_bucket(bucket_name):
+        status = yield self.application.storage.is_bucket(bucket_name)
+        if not status:
             raise web.HTTPError(404)
-        if self.application.storage.is_bucket(bucket_name, object_name):
+        status = self.application.storage.is_bucket(bucket_name, object_name)
+        if status:
             raise web.HTTPError(403)
         self.application.storage.write_object(bucket_name, object_name, self.request.body)
         self.finish()
@@ -155,7 +162,8 @@ class ObjectHandler(BaseRequestHandler):
     def delete(self, bucket_name, object_name):
         log.msg('Removing object %s from bucket %s' % (object_name, bucket_name))
         object_name = urllib.unquote(object_name)
-        if not self.application.storage.is_object(bucket_name, object_name):
+        status = yield self.application.storage.is_object(bucket_name, object_name)
+        if not status:
             raise web.HTTPError(404)
         self.application.storage.delete_object(bucket_name, object_name)
         self.set_status(204)

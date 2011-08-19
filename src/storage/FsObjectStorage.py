@@ -2,6 +2,9 @@ import os
 import bisect
 import datetime
 from twisted.python import log
+from twisted.internet import defer
+from twisted.internet import fdesc
+
 
 class ObjectStorage(object):
     def __init__(self):
@@ -13,15 +16,19 @@ class ObjectStorage(object):
             return os.path.abspath(os.path.join(self.directory, bucket_name, object_name))
         return os.path.abspath(os.path.join(self.directory, bucket_name))
 
+    @defer.inlineCallbacks
     def is_bucket(self, bucket_name, object_name = None):
         if os.path.isdir(self.__object_path__(bucket_name, object_name)):
-            return True
-        return False
+            defer.returnValue(True)
+        defer.returnValue(False)
 
+    @defer.inlineCallbacks
     def is_object(self, bucket_name, object_name):
         if os.path.isfile(self.__object_path__(bucket_name, object_name)):
-            return True
+            defer.returnValue(True)
+        defer.returnValue(False)
 
+    @defer.inlineCallbacks
     def list_buckets(self):
         buckets = []
         for bucket in os.listdir(self.directory):
@@ -29,7 +36,7 @@ class ObjectStorage(object):
                 'Name': bucket,
                 'CreationDate': datetime.datetime.utcfromtimestamp(os.stat(self.__object_path__(bucket)).st_ctime),
             })
-        return buckets
+        defer.returnValue(buckets)
 
     def create_bucket(self, bucket_name):
         _bucket = self.__object_path__(bucket_name)
@@ -43,6 +50,7 @@ class ObjectStorage(object):
             os.rmdir(_bucket)
             log.msg('Delete bucket %s' % bucket_name)
 
+    @defer.inlineCallbacks
     def list_objects(self, bucket_name, marker = None, prefix = None, max_keys = 5000, terse = None):
         objects = []
         start_pos = 0
@@ -70,28 +78,32 @@ class ObjectStorage(object):
             contents.append(content)
             marker = _object
 
-        return { 
-                    'Name': bucket_name, 
-                    'Prefix': prefix, 
-                    'Marker': marker, 
-                    'MaxKeys': max_keys, 
-                    'IsTruncated': truncated, 
-                    'Contents': contents
-                }
+        defer.returnValue({ 
+                            'Name': bucket_name, 
+                            'Prefix': prefix, 
+                            'Marker': marker, 
+                            'MaxKeys': max_keys, 
+                            'IsTruncated': truncated, 
+                            'Contents': contents
+                          })
 
+    @defer.inlineCallbacks
     def stat_object(self, bucket_name, object_name):
         _stat = os.stat(self.__object_path__(bucket_name, object_name))
-        return {
-                    'LastModified': datetime.datetime.utcfromtimestamp(_stat.st_mtime), 
-                    'CreationDate': datetime.datetime.utcfromtimestamp(_stat.st_ctime),
-                    'Size': _stat.st_size
-               }
+        defer.returnValue({
+                            'LastModified': datetime.datetime.utcfromtimestamp(_stat.st_mtime), 
+                            'CreationDate': datetime.datetime.utcfromtimestamp(_stat.st_ctime),
+                            'Size': _stat.st_size
+                          })
 
+    @defer.inlineCallbacks
     def read_object(self, bucket_name, object_name):
-        return open(self.__object_path__(bucket_name, object_name)).read()
+        defer.returnValue(open(self.__object_path__(bucket_name, object_name)).read())
 
+    @defer.inlineCallbacks
     def write_object(self, bucket_name, object_name, content):
-        open(self.__object_path__(bucket_name, object_name), 'w').write(content)
+        file = open(self.__object_path__(bucket_name, object_name), 'w')
+        fdesc.writeToFD(file, content)
         log.msg('Created object %s on bucket %s' % (object_name, bucket_name))
 
     def delete_object(self, bucket_name, object_name):

@@ -1,7 +1,7 @@
 import os
 import bisect
-import txriak
 import datetime
+from txriak import riak
 from twisted.python import log
 from twisted.internet import defer
 
@@ -12,22 +12,24 @@ class ObjectStorage(object):
 
     @defer.inlineCallbacks
     def is_bucket(self, bucket_name, object_name = None):
-        if (bucket_name in self.client.list_buckets()):
+        bkt = yield self.client.list_buckets()
+        if (bucket_name in bkt):
             if not object_name:
-                return True
+                defer.returnValue(True)
             
             bucket = client.bucket(bucket_name)
             obj = yield bucket.get_binary(object_name)
             if obj.exists():
-                return True
-        return False
+                defer.returnValue(True)
+        else:
+            defer.returnValue(False)
     
     @defer.inlineCallbacks
     def is_object(self, bucket_name, object_name):
         bucket = client.bucket(bucket_name)
         obj = yield bucket.get_binary(object_name)
         if obj.exists():
-            return True
+            defer.returnValue(True)
 
     # TODO: Fix the date thing
     @defer.inlineCallbacks
@@ -38,10 +40,12 @@ class ObjectStorage(object):
                 'Name': bucket,
                 'CreationDate': datetime.datetime.now(),
             })
-        return buckets
+        defer.returnValue(buckets)
 
     def create_bucket(self, bucket_name):
         bucket = client.bucket(bucket_name)
+        obj = bucket.new_binary('__CreationDate__', datetime.datetime.now())
+        yield obj.store()
         log.msg('Created bucket %s' % bucket_name)
 
     def delete_bucket(self, bucket_name):
