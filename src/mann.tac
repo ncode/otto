@@ -5,10 +5,9 @@
 
 SERVER_PORT = 4000
 
-import s3server
+import otto
 from twisted.application import service, internet
 
-application = service.Application("s3")
-srv = internet.TCPServer(SERVER_PORT, s3server.S3Application(root_directory="/tmp/s3"))
+application = service.Application("Otto Daemon")
+srv = internet.TCPServer(SERVER_PORT, otto.S3Application(tmp_directory="/tmp/otto"))
 srv.setServiceParent(application)
-

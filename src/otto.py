@@ -13,9 +13,12 @@
 # WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 # License for the specific language governing permissions and limitations
 # under the License.
-
+#
 # port to cyclone: took out ioloop initialization, fixed imports and created a .tac file
 # gleicon 04/10
+#
+# modular storage backend
+# ncode 08/11 
 
 """Implementation of an S3-like storage server based on local files.
 
@@ -50,19 +53,15 @@ class S3Application(web.Application):
     to prevent hitting file system limits for number of files in each
     directories. 1 means one level of directories, 2 means 2, etc.
     """
-    def __init__(self, root_directory, bucket_depth=0):
+    def __init__(self, tmp_directory, bucket_depth=0):
         web.Application.__init__(self, [
             (r"/", RootHandler),
             (r"/([^/]+)/(.+)", ObjectHandler),
             (r"/([^/]+)/", BucketHandler),
         ])
-        self.directory = os.path.abspath(root_directory)
-        self.tmp = '/tmp/cancer'
-        if not os.path.exists(self.directory):
-            os.makedirs(self.directory)
-        if not os.path.exists(self.tmp):
-            os.makedirs(self.tmp)
-        self.bucket_depth = bucket_depth
+        self.tmp_directory = tmp_directory
+        if not os.path.exists(self.tmp_directory):
+            os.makedirs(self.tmp_directory)
         self.storage = FsObjectStorage.ObjectStorage()
 
 class BaseRequestHandler(web.RequestHandler):
