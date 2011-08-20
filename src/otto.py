@@ -37,7 +37,8 @@ S3 client with this module:
 
 """
 
-from storage import FsObjectStorage
+from storage import FsObjectStorage as ObjectStorage
+#from storage import RiakObjectStorage
 from twisted.python import log
 from cyclone import escape
 from cyclone import web
@@ -62,7 +63,7 @@ class S3Application(web.Application):
         self.tmp_directory = tmp_directory
         if not os.path.exists(self.tmp_directory):
             os.makedirs(self.tmp_directory)
-        self.storage = FsObjectStorage.ObjectStorage()
+        self.storage = ObjectStorage.ObjectStorage()
 
 class BaseRequestHandler(web.RequestHandler):
 #    SUPPORTED_METHODS = ("PUT", "GET", "DELETE", "HEAD")
@@ -100,8 +101,9 @@ class BaseRequestHandler(web.RequestHandler):
 class RootHandler(BaseRequestHandler):
     def get(self):
         log.msg('Accessing root directory')
+        bucket_list = self.application.storage.list_buckets()
         self.render_xml({"ListAllMyBucketsResult": {
-            "Buckets": {"Bucket": self.application.storage.list_buckets()},
+            "Buckets": {"Bucket": bucket_list},
         }})
 
 class BucketHandler(BaseRequestHandler):
