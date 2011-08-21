@@ -1,4 +1,5 @@
 import os
+import time
 import bisect
 import datetime
 from txriak import riak
@@ -25,7 +26,7 @@ class ObjectStorage(object):
     
     @defer.inlineCallbacks
     def is_object(self, bucket_name, object_name):
-        bucket = client.bucket(bucket_name)
+        bucket = self.client.bucket(bucket_name)
         obj = yield bucket.get_binary(object_name)
         if obj.exists():
             defer.returnValue(True)
@@ -48,8 +49,8 @@ class ObjectStorage(object):
 
     @defer.inlineCallbacks
     def create_bucket(self, bucket_name):
-        bucket = client.bucket(bucket_name)
-        obj = bucket.new_binary('__CreationDate__', datetime.datetime.now())
+        bucket = self.client.bucket(bucket_name)
+        obj = bucket.new('__CreationDate__', str(time.mktime(datetime.datetime.now().timetuple())))
         yield obj.store()
         del(obj)
         log.msg('Created bucket %s' % bucket_name)
