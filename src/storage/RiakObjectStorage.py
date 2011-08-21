@@ -21,14 +21,14 @@ class ObjectStorage(object):
             obj = yield bucket.get_binary(object_name)
             if obj.exists():
                 defer.returnValue(True)
-        else:
-            defer.returnValue(False)
+        defer.returnValue(False)
     
+    @defer.inlineCallbacks
     def is_object(self, bucket_name, object_name):
         bucket = client.bucket(bucket_name)
         obj = yield bucket.get_binary(object_name)
         if obj.exists():
-            yield True
+            defer.returnValue(True)
 
     def _return(self, value):
         log.msg(value)
