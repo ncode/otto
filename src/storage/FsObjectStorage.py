@@ -99,3 +99,4 @@ class ObjectStorage(object):
         if os.path.isfile(_object):
             os.unlink(_object)
             log.msg('Created object %s on bucket %s' % (object_name, bucket_name))
+
