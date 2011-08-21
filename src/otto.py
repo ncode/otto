@@ -1,44 +1,12 @@
 #!/usr/bin/env python
-#
-# Copyright 2009 Facebook
-#
-# Licensed under the Apache License, Version 2.0 (the "License"); you may
-# not use this file except in compliance with the License. You may obtain
-# a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
-# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
-# License for the specific language governing permissions and limitations
-# under the License.
-#
-# port to cyclone: took out ioloop initialization, fixed imports and created a .tac file
-# gleicon 04/10
-#
-# modular storage backend
-# ncode 08/11 
 
-"""Implementation of an S3-like storage server based on local files.
-
-Useful to test features that will eventually run on S3, or if you want to
-run something locally that was once running on S3.
-
-We don't support all the features of S3, but it does work with the
-standard S3 client for the most basic semantics. To use the standard
-S3 client with this module:
-
-    c = S3.AWSAuthConnection("", "", server="localhost", port=8888,
-                             is_secure=False)
-    c.create_bucket("mybucket")
-    c.put("mybucket", "mykey", "a value")
-    print c.get("mybucket", "mykey").body
-
-"""
+__version__ = '0.0.1'
+VERSION = tuple(map(int, __version__.split('.')))
+__all__ = ['otto']
+__author__ = 'Juliano Martinez <juliano@martinez.io>'
 
 from storage import FsObjectStorage as ObjectStorage
-#from storage import RiakObjectStorage
+#from storage import RiakObjectStorage as ObjectStorage
 from twisted.python import log
 from cyclone import escape
 from cyclone import web
@@ -48,12 +16,6 @@ import sys
 import os
 
 class S3Application(web.Application):
-    """Implementation of an S3-like storage server based on local files.
-
-    If bucket depth is given, we break files up into multiple directories
-    to prevent hitting file system limits for number of files in each
-    directories. 1 means one level of directories, 2 means 2, etc.
-    """
     def __init__(self, tmp_directory, bucket_depth=0):
         web.Application.__init__(self, [
             (r"/", RootHandler),
@@ -66,7 +28,6 @@ class S3Application(web.Application):
         self.storage = ObjectStorage.ObjectStorage()
 
 class BaseRequestHandler(web.RequestHandler):
-#    SUPPORTED_METHODS = ("PUT", "GET", "DELETE", "HEAD")
     def render_xml(self, value):
         assert isinstance(value, dict) and len(value) == 1
         self.set_header("Content-Type", "application/xml; charset=UTF-8")
@@ -103,6 +64,7 @@ class RootHandler(BaseRequestHandler):
             "Buckets": {"Bucket": bucket_list},
         }})
 
+
 class BucketHandler(BaseRequestHandler):
     def get(self, bucket_name):
         log.msg('Accessing bucket %s' % bucket_name)
@@ -130,6 +92,7 @@ class BucketHandler(BaseRequestHandler):
         self.application.storage.delete_bucket(bucket_name)
         self.set_status(204)
         self.finish()
+
 
 class ObjectHandler(BaseRequestHandler):
     def get(self, bucket_name, object_name):
@@ -159,3 +122,4 @@ class ObjectHandler(BaseRequestHandler):
         self.application.storage.delete_object(bucket_name, object_name)
         self.set_status(204)
         self.finish()
+

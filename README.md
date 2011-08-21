@@ -5,11 +5,6 @@
 cyclone - https://github.com/fiorix/cyclone.git
 txriak - https://github.com/fiorix/cyclone.git
 
-## Install:
-
-    $ python setup.py build
-    $ python setup.py install
-
 ## Usage:
 ### Running otto:
 

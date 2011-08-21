@@ -2,6 +2,7 @@
 
 curl --request PUT "http://localhost:4000/otto/"
 curl --data-binary "@otto.py" --request PUT --header "Content-Type: text/plain" "http://localhost:4000/otto/otto.py"
+curl "http://localhost:4000/otto/"
 curl "http://localhost:4000/otto/otto.py"
 curl --request DELETE "http://localhost:4000/otto/otto.py"
 curl --request DELETE "http://localhost:4000/otto/"
