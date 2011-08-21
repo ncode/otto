@@ -83,7 +83,8 @@ class BucketHandler(BaseRequestHandler):
     @web.asynchronous
     def put(self, bucket_name):
         log.msg('Creating bucket %s' % bucket_name)
-        if self.application.storage.is_bucket(bucket_name):
+        status = yield self.application.storage.is_bucket(bucket_name)
+        if status:
             raise web.HTTPError(403)
         self.application.storage.create_bucket(bucket_name)
         self.finish()
