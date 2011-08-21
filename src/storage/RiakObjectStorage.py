@@ -7,7 +7,7 @@ from twisted.internet import defer
 
 class ObjectStorage(object):
     def __init__(self):
-        log.msg('FsObjectStorage.ObjectStorage loaded')
+        log.msg('RiakObjectStorage.ObjectStorage loaded')
         self.client = riak.RiakClient()
 
     @defer.inlineCallbacks
@@ -30,10 +30,15 @@ class ObjectStorage(object):
         if obj.exists():
             yield True
 
+    def _return(self, value):
+        log.msg(value)
+        return value
+
     @defer.inlineCallbacks
     def list_buckets(self):
         bucket_list = []
         _bucket = yield self.client.list_buckets()
+        log.msg(_bucket)
         for bucket in _bucket:
             bucket_list.append({
                 'Name': bucket,

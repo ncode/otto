@@ -5,6 +5,7 @@ VERSION = tuple(map(int, __version__.split('.')))
 __all__ = ['otto']
 __author__ = 'Juliano Martinez <juliano@martinez.io>'
 
+from twisted.internet import defer
 from twisted.python import log
 from cyclone import escape
 from cyclone import web
@@ -56,15 +57,18 @@ class BaseRequestHandler(web.RequestHandler):
             raise Exception("Unknown S3 value type %r", value)
 
 class RootHandler(BaseRequestHandler):
+    @defer.inlineCallbacks
+    @web.asynchronous
     def get(self):
         log.msg('Accessing root directory')
-        bucket_list = self.application.storage.list_buckets()
+        bucket_list = yield self.application.storage.list_buckets()
         self.render_xml({"ListAllMyBucketsResult": {
             "Buckets": {"Bucket": bucket_list},
         }})
 
-
 class BucketHandler(BaseRequestHandler):
+    @defer.inlineCallbacks
+    @web.asynchronous
     def get(self, bucket_name):
         log.msg('Accessing bucket %s' % bucket_name)
         prefix = self.get_argument("prefix", u"")
@@ -75,6 +79,8 @@ class BucketHandler(BaseRequestHandler):
             raise web.HTTPError(404)
         self.render_xml({"ListBucketResult": self.application.storage.list_objects(bucket_name, marker, prefix, max_keys, terse)})
 
+    @defer.inlineCallbacks
+    @web.asynchronous
     def put(self, bucket_name):
         log.msg('Creating bucket %s' % bucket_name)
         if self.application.storage.is_bucket(bucket_name):
@@ -82,6 +88,8 @@ class BucketHandler(BaseRequestHandler):
         self.application.storage.create_bucket(bucket_name)
         self.finish()
 
+    @defer.inlineCallbacks
+    @web.asynchronous
     def delete(self, bucket_name):
         log.msg('Deleting bucket %s' % bucket_name)
         if not self.application.storage.is_bucket(bucket_name):
@@ -92,8 +100,9 @@ class BucketHandler(BaseRequestHandler):
         self.set_status(204)
         self.finish()
 
-
 class ObjectHandler(BaseRequestHandler):
+    @defer.inlineCallbacks
+    @web.asynchronous
     def get(self, bucket_name, object_name):
         log.msg('Accessing object %s from bucket %s' % (object_name, bucket_name))
         object_name = urllib.unquote(object_name)
@@ -103,6 +112,8 @@ class ObjectHandler(BaseRequestHandler):
         self.set_header("Last-Modified", self.application.storage.stat_object(bucket_name, object_name)['LastModified'])
         self.finish(self.application.storage.read_object(bucket_name, object_name))
 
+    @defer.inlineCallbacks
+    @web.asynchronous
     def put(self, bucket_name, object_name):
         log.msg('Writing object %s on bucket %s' % (object_name, bucket_name))
         object_name = urllib.unquote(object_name)
@@ -113,6 +124,8 @@ class ObjectHandler(BaseRequestHandler):
         self.application.storage.write_object(bucket_name, object_name, self.request.body)
         self.finish()
 
+    @defer.inlineCallbacks
+    @web.asynchronous
     def delete(self, bucket_name, object_name):
         log.msg('Removing object %s from bucket %s' % (object_name, bucket_name))
         object_name = urllib.unquote(object_name)
