@@ -95,9 +95,6 @@ class BaseRequestHandler(web.RequestHandler):
         else:
             raise Exception("Unknown S3 value type %r", value)
 
-    def _object_path(self, bucket, object_name):
-        return os.path.abspath(os.path.join(self.application.directory, bucket, object_name))
-
 class RootHandler(BaseRequestHandler):
     def get(self):
         log.msg('Accessing root directory')
