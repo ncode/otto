@@ -5,8 +5,6 @@ VERSION = tuple(map(int, __version__.split('.')))
 __all__ = ['otto']
 __author__ = 'Juliano Martinez <juliano@martinez.io>'
 
-from storage import FsObjectStorage as ObjectStorage
-#from storage import RiakObjectStorage as ObjectStorage
 from twisted.python import log
 from cyclone import escape
 from cyclone import web
@@ -16,7 +14,7 @@ import sys
 import os
 
 class S3Application(web.Application):
-    def __init__(self, tmp_directory, bucket_depth=0):
+    def __init__(self, tmp_directory, ObjectStorage):
         web.Application.__init__(self, [
             (r"/", RootHandler),
             (r"/([^/]+)/(.+)", ObjectHandler),
@@ -25,7 +23,8 @@ class S3Application(web.Application):
         self.tmp_directory = tmp_directory
         if not os.path.exists(self.tmp_directory):
             os.makedirs(self.tmp_directory)
-        self.storage = ObjectStorage.ObjectStorage()
+        storage = __import__(ObjectStorage)
+        self.storage = getattr(storage, ObjectStorage.split('.')[0]).ObjectStorage()
 
 class BaseRequestHandler(web.RequestHandler):
     def render_xml(self, value):
