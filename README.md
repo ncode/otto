@@ -2,8 +2,8 @@
 
 ## Requirements:
 
-cyclone - https://github.com/fiorix/cyclone.git 
-txriak - https://github.com/fiorix/cyclone.git
+* cyclone - https://github.com/fiorix/cyclone.git
+* txriak - https://github.com/fiorix/cyclone.git
 
 ## Usage:
 ### Running otto:
