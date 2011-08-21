@@ -1,4 +1,4 @@
-# Otto - An S3 Clone on top of cyclone
+# Otto - S3 Clone on top of cyclone
 
 ## Requirements:
 
