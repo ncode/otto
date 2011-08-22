@@ -9,7 +9,7 @@ from twisted.internet import defer
 class ObjectStorage(object):
     def __init__(self):
         log.msg('RiakObjectStorage.ObjectStorage loaded')
-        self.client = riak.RiakClient()
+        self.client = riak.RiakClient(prefix='luwak')
 
     @defer.inlineCallbacks
     def is_bucket(self, bucket_name, object_name = None):
@@ -31,10 +31,6 @@ class ObjectStorage(object):
         if obj.exists():
             defer.returnValue(True)
 
-    def _return(self, value):
-        log.msg(value)
-        return value
-
     @defer.inlineCallbacks
     def list_buckets(self):
         bucket_list = []
@@ -55,6 +51,7 @@ class ObjectStorage(object):
         del(obj)
         log.msg('Created bucket %s' % bucket_name)
 
+    @defer.inlineCallbacks
     def delete_bucket(self, bucket_name):
         pass
 

@@ -75,9 +75,11 @@ class BucketHandler(BaseRequestHandler):
         marker = self.get_argument("marker", u"")
         max_keys = int(self.get_argument("max-keys", 50000))
         terse = int(self.get_argument("terse", 0))
-        if not self.application.storage.is_bucket(bucket_name):
+        status = yield self.application.storage.is_bucket(bucket_name)
+        if not status:
             raise web.HTTPError(404)
-        self.render_xml({"ListBucketResult": self.application.storage.list_objects(bucket_name, marker, prefix, max_keys, terse)})
+        _objects = yield self.application.storage.list_objects(bucket_name, marker, prefix, max_keys, terse)
+        self.render_xml({"ListBucketResult": _objects})
 
     @defer.inlineCallbacks
     @web.asynchronous
@@ -93,9 +95,11 @@ class BucketHandler(BaseRequestHandler):
     @web.asynchronous
     def delete(self, bucket_name):
         log.msg('Deleting bucket %s' % bucket_name)
-        if not self.application.storage.is_bucket(bucket_name):
+        status = yield self.application.storage.is_bucket(bucket_name)
+        if not status:
             raise web.HTTPError(404)
-        if len(self.application.storage.list_objects(bucket_name)['Contents']) > 0:
+        contents = yield self.application.storage.list_objects(bucket_name)
+        if len(contents['Contents']) > 0:
             raise web.HTTPError(403)
         self.application.storage.delete_bucket(bucket_name)
         self.set_status(204)
@@ -107,20 +111,25 @@ class ObjectHandler(BaseRequestHandler):
     def get(self, bucket_name, object_name):
         log.msg('Accessing object %s from bucket %s' % (object_name, bucket_name))
         object_name = urllib.unquote(object_name)
-        if not self.application.storage.is_object(bucket_name, object_name):
+        status = yield self.application.storage.is_object(bucket_name, object_name)
+        if not status:
             raise web.HTTPError(404)
         self.set_header("Content-Type", "application/unknown")
-        self.set_header("Last-Modified", self.application.storage.stat_object(bucket_name, object_name)['LastModified'])
-        self.finish(self.application.storage.read_object(bucket_name, object_name))
+        _stat = yield self.application.storage.stat_object(bucket_name, object_name)
+        self.set_header("Last-Modified", _stat['LastModified'])
+        _object = yield self.application.storage.read_object(bucket_name, object_name)
+        self.finish(_object)
 
     @defer.inlineCallbacks
     @web.asynchronous
     def put(self, bucket_name, object_name):
         log.msg('Writing object %s on bucket %s' % (object_name, bucket_name))
         object_name = urllib.unquote(object_name)
-        if not self.application.storage.is_bucket(bucket_name):
+        status = yield self.application.storage.is_bucket(bucket_name)
+        if not status:
             raise web.HTTPError(404)
-        if self.application.storage.is_bucket(bucket_name, object_name):
+        status = yield self.application.storage.is_bucket(bucket_name, object_name)
+        if status:
             raise web.HTTPError(403)
         self.application.storage.write_object(bucket_name, object_name, self.request.body)
         self.finish()
@@ -130,7 +139,8 @@ class ObjectHandler(BaseRequestHandler):
     def delete(self, bucket_name, object_name):
         log.msg('Removing object %s from bucket %s' % (object_name, bucket_name))
         object_name = urllib.unquote(object_name)
-        if not self.application.storage.is_object(bucket_name, object_name):
+        status = yield self.application.storage.is_object(bucket_name, object_name)
+        if not status:
             raise web.HTTPError(404)
         self.application.storage.delete_object(bucket_name, object_name)
         self.set_status(204)
