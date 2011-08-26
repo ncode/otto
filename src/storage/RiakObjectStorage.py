@@ -9,7 +9,13 @@ from twisted.internet import defer
 class ObjectStorage(object):
     def __init__(self):
         log.msg('RiakObjectStorage.ObjectStorage loaded')
-        self.client = riak.RiakClient(prefix='luwak')
+        self.client = riak.RiakClient()
+        self._private = ['luwak_node']
+
+    @defer.inlineCallbacks
+    def __object_path__(self, bucket_name, object_name):
+        result = yield 'luwak/%s/%s' % (bucket_name, object_name)
+        defer.returnValue(result)
 
     @defer.inlineCallbacks
     def is_bucket(self, bucket_name, object_name = None):
@@ -37,10 +43,11 @@ class ObjectStorage(object):
         _bucket = yield self.client.list_buckets()
         log.msg(_bucket)
         for bucket in _bucket:
-            bucket_list.append({
-                'Name': bucket,
-                'CreationDate': datetime.datetime.now(),
-            })
+            if not bucket in self._private:
+                bucket_list.append({
+                    'Name': bucket,
+                    'CreationDate': datetime.datetime.now(),
+                })
         defer.returnValue(bucket_list)
 
     @defer.inlineCallbacks
@@ -56,10 +63,9 @@ class ObjectStorage(object):
         pass
 
     def list_objects(self, bucket_name, marker = None, prefix = None, max_keys = 5000, terse = None):
-        objects = []
         start_pos = 0
         truncated = False
-        [ objects.append(file_name) for root, dirs, files in os.walk(self.__object_path__(bucket_name)) for file_name in files ]
+        objects = yield bucket.list_keys()
         if marker:
             start_pos = bisect.bisect_right(objects, marker, start_pos)
         if prefix:
@@ -74,10 +80,10 @@ class ObjectStorage(object):
                 break
             content = {'Key': _object}
             if not terse:
-                _stat = os.stat(self.__object_path__(bucket_name, _object))
+                _stat = yield self.stat_object(bucket_name, object_name_
                 content.update({
-                    'LastModified': datetime.datetime.utcfromtimestamp(_stat.st_mtime),
-                    'Size': _stat.st_size,
+                    'LastModified': _stat['LastModified'],
+                    'Size': _stat['Size'],
                 })
             contents.append(content)
             marker = _object
@@ -92,22 +98,38 @@ class ObjectStorage(object):
                 }
 
     def stat_object(self, bucket_name, object_name):
-        _stat = os.stat(self.__object_path__(bucket_name, object_name))
-        yield {
-                    'LastModified': datetime.datetime.utcfromtimestamp(_stat.st_mtime), 
-                    'CreationDate': datetime.datetime.utcfromtimestamp(_stat.st_ctime),
-                    'Size': _stat.st_size
-               }
+        bucket = self.client.bucket(bucket_name)
+        _object = yield bucket.get_binary(object_name)
+        if _object.exists():
+            defer.returnValue(False)
+            _stat = _object.get_data
+            yield {
+                        'LastModified': datetime.datetime.utcfromtimestamp(_stat.st_mtime), 
+                        'CreationDate': datetime.datetime.utcfromtimestamp(_stat.st_ctime),
+                        'Size': _stat.st_size
+                }
 
     def read_object(self, bucket_name, object_name):
         yield open(self.__object_path__(bucket_name, object_name)).read()
 
     def write_object(self, bucket_name, object_name, content):
-        open(self.__object_path__(bucket_name, object_name), 'w').write(content)
+        bucket = self.client.bucket(bucket_name)
+        _object = yield self.__object_path__(bucket_name, object_name)
+        stat = { 
+                    'CreationDate': str(time.mktime(datetime.datetime.now().timetuple())),
+                    'ObjectPath': _object
+               }
+        obj = bucket.new_binary(object_name, json.dumps(stat))
+        yield obj.store()
+        del(obj)
         log.msg('Created object %s on bucket %s' % (object_name, bucket_name))
+        defer.returnValue(True)
 
     def delete_object(self, bucket_name, object_name):
-        _object = self.__object_path__(bucket_name, object_name)
-        if os.path.isfile(_object):
-            os.unlink(_object)
-            log.msg('Created object %s on bucket %s' % (object_name, bucket_name))
+        bucket = self.client.bucket(bucket_name)
+        obj = yield bucket.get_binary(object_name)
+        if obj.exists():
+            obj.delete()
+            log.msg('Deleted object %s on bucket %s' % (object_name, bucket_name))
+            defer.returnValue(True)
+        defer.returnValue(False)

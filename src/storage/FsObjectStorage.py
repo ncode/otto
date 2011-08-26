@@ -130,7 +130,7 @@ class ObjectStorage(object):
         _object = yield self.__object_path__(bucket_name, object_name)
         if os.path.isfile(_object):
             os.unlink(_object)
-            log.msg('Created object %s on bucket %s' % (object_name, bucket_name))
+            log.msg('Deleted object %s on bucket %s' % (object_name, bucket_name))
             defer.returnValue(True)
         else:
             defer.returnValue(False)

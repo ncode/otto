@@ -137,7 +137,7 @@ class ObjectHandler(BaseRequestHandler):
     @defer.inlineCallbacks
     @web.asynchronous
     def delete(self, bucket_name, object_name):
-        log.msg('Removing object %s from bucket %s' % (object_name, bucket_name))
+        log.msg('Deleting object %s from bucket %s' % (object_name, bucket_name))
         object_name = urllib.unquote(object_name)
         status = yield self.application.storage.is_object(bucket_name, object_name)
         if not status:
