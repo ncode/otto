@@ -1,4 +1,5 @@
 import os
+import json
 import time
 import bisect
 import datetime
@@ -22,11 +23,17 @@ class ObjectStorage(object):
         _bucket = yield self.client.list_buckets()
         if (bucket_name in _bucket):
             if not object_name:
-                defer.returnValue(True)
-            
-            bucket = client.bucket(bucket_name)
+                bucket = self.client.bucket(bucket_name)
+                obj = yield bucket.get_binary('__CreationDate__')
+                if obj.exists():
+                    log.msg('Found a bucket with name %s' % bucket_name)
+                    defer.returnValue(True)
+                defer.returnValue(False)
+
+            bucket = self.client.bucket(bucket_name)
             obj = yield bucket.get_binary(object_name)
             if obj.exists():
+                log.msg('Found a bucket with name %s/%s' % (bucket_name, object_name))
                 defer.returnValue(True)
         defer.returnValue(False)
     
@@ -35,13 +42,14 @@ class ObjectStorage(object):
         bucket = self.client.bucket(bucket_name)
         obj = yield bucket.get_binary(object_name)
         if obj.exists():
+            log.msg('Found object %s on bucket %s' % (object_name, bucket_name))
             defer.returnValue(True)
+        defer.returnValue(False)
 
     @defer.inlineCallbacks
     def list_buckets(self):
         bucket_list = []
         _bucket = yield self.client.list_buckets()
-        log.msg(_bucket)
         for bucket in _bucket:
             if not bucket in self._private:
                 bucket_list.append({
@@ -53,18 +61,25 @@ class ObjectStorage(object):
     @defer.inlineCallbacks
     def create_bucket(self, bucket_name):
         bucket = self.client.bucket(bucket_name)
-        obj = bucket.new('__CreationDate__', str(time.mktime(datetime.datetime.now().timetuple())))
+        obj = bucket.new_binary('__CreationDate__', str(time.mktime(datetime.datetime.now().timetuple())))
         yield obj.store()
         del(obj)
         log.msg('Created bucket %s' % bucket_name)
 
     @defer.inlineCallbacks
     def delete_bucket(self, bucket_name):
-        pass
+        bucket = self.client.bucket(bucket_name)
+        obj = yield bucket.get_binary('__CreationDate__')
+        if obj.exists():
+            defer.returnValue(True)
+            log.msg('Removed bucket %s' % bucket_name)
+        defer.returnValue(False)
 
+    @defer.inlineCallbacks
     def list_objects(self, bucket_name, marker = None, prefix = None, max_keys = 5000, terse = None):
         start_pos = 0
         truncated = False
+        bucket = self.client.bucket(bucket_name)
         objects = yield bucket.list_keys()
         if marker:
             start_pos = bisect.bisect_right(objects, marker, start_pos)
@@ -73,6 +88,9 @@ class ObjectStorage(object):
 
         contents = []
         for _object in objects[start_pos:]:
+            if _object == '__CreationDate__':
+                continue
+
             if not _object.startswith(prefix):
                 break
             if len(contents) >= max_keys:
@@ -80,7 +98,7 @@ class ObjectStorage(object):
                 break
             content = {'Key': _object}
             if not terse:
-                _stat = yield self.stat_object(bucket_name, object_name_
+                _stat = yield self.stat_object(bucket_name, _object)
                 content.update({
                     'LastModified': _stat['LastModified'],
                     'Size': _stat['Size'],
@@ -88,30 +106,33 @@ class ObjectStorage(object):
             contents.append(content)
             marker = _object
 
-        yield { 
+        defer.returnValue({ 
                     'Name': bucket_name, 
                     'Prefix': prefix, 
                     'Marker': marker, 
                     'MaxKeys': max_keys, 
                     'IsTruncated': truncated, 
                     'Contents': contents
-                }
+                })
 
+    @defer.inlineCallbacks
     def stat_object(self, bucket_name, object_name):
         bucket = self.client.bucket(bucket_name)
         _object = yield bucket.get_binary(object_name)
         if _object.exists():
-            defer.returnValue(False)
-            _stat = _object.get_data
-            yield {
-                        'LastModified': datetime.datetime.utcfromtimestamp(_stat.st_mtime), 
-                        'CreationDate': datetime.datetime.utcfromtimestamp(_stat.st_ctime),
-                        'Size': _stat.st_size
-                }
+            _stat =  yield {
+                                'LastModified': datetime.datetime.utcnow(), 
+                                'CreationDate': datetime.datetime.utcnow(),
+                                'Size': len('lelelelele')
+                           }
+            defer.returnValue(_stat)
+        defer.returnValue(False)
 
+    @defer.inlineCallbacks
     def read_object(self, bucket_name, object_name):
         yield open(self.__object_path__(bucket_name, object_name)).read()
 
+    @defer.inlineCallbacks
     def write_object(self, bucket_name, object_name, content):
         bucket = self.client.bucket(bucket_name)
         _object = yield self.__object_path__(bucket_name, object_name)
@@ -125,6 +146,7 @@ class ObjectStorage(object):
         log.msg('Created object %s on bucket %s' % (object_name, bucket_name))
         defer.returnValue(True)
 
+    @defer.inlineCallbacks
     def delete_object(self, bucket_name, object_name):
         bucket = self.client.bucket(bucket_name)
         obj = yield bucket.get_binary(object_name)
