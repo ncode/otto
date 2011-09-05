@@ -51,7 +51,11 @@ class ObjectStorage(object):
         bucket_list = []
         _bucket = yield self.client.list_buckets()
         for bucket in _bucket:
-            if not bucket in self._private:
+            if bucket in self._private:
+                continue
+
+            obj = yield self.is_object(bucket, '__CreationDate__')
+            if obj:
                 bucket_list.append({
                     'Name': bucket,
                     'CreationDate': datetime.datetime.now(),
@@ -68,11 +72,10 @@ class ObjectStorage(object):
 
     @defer.inlineCallbacks
     def delete_bucket(self, bucket_name):
-        bucket = self.client.bucket(bucket_name)
-        obj = yield bucket.get_binary('__CreationDate__')
-        if obj.exists():
-            defer.returnValue(True)
+        obj = yield self.delete_object(bucket_name, '__CreationDate__')
+        if obj:
             log.msg('Removed bucket %s' % bucket_name)
+            defer.returnValue(True)
         defer.returnValue(False)
 
     @defer.inlineCallbacks
@@ -89,6 +92,7 @@ class ObjectStorage(object):
         contents = []
         for _object in objects[start_pos:]:
             if _object == '__CreationDate__':
+                log.msg('Skipping object %s from  bucket %s' % (_object, bucket_name))
                 continue
 
             if not _object.startswith(prefix):
@@ -104,6 +108,7 @@ class ObjectStorage(object):
                     'Size': _stat['Size'],
                 })
             contents.append(content)
+            log.msg('Listing object %s from bucket %s' % (_object, bucket_name))
             marker = _object
 
         defer.returnValue({ 
