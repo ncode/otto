@@ -137,8 +137,10 @@ class ObjectStorage(object):
 
     @defer.inlineCallbacks
     def read_object(self, bucket_name, object_name):
-        _object = yield self.__object_path__(bucket_name, object_name)
-        content = yield httpclient.fetch('http://127.0.0.1:8098/%s' % _object)
+        bucket = self.riak_client.bucket(bucket_name)
+        _object = yield bucket.get_binary(object_name)
+        _object = json.loads(_object.get_data())
+        content = yield httpclient.fetch('http://127.0.0.1:8098/%s' % _object['ObjectPath'])
         defer.returnValue(content.body)
 
     @defer.inlineCallbacks
@@ -179,8 +181,11 @@ class ObjectStorage(object):
         obj = yield bucket.get_binary(object_name)
         if obj.exists():
             _object = json.loads(obj.get_data())
-            status = yield httpclient.fetch('http://127.0.0.1:8098/%s' % _object['ObjectPath'], method="DELETE")
+            if 'ObjectPath' in object_name: 
+                httpclient.fetch('http://127.0.0.1:8098/%s' % _object['ObjectPath'], method="DELETE")
+                log.msg('Deleted object %s from bucket %s on %s' % (object_name, bucket_name, _object['ObjectPath']))
+            else:
+                log.msg('Deleted object %s from bucket %s' % (object_name, bucket_name))
             obj.delete()
-            log.msg('Deleted object %s from bucket %s on %s' % (object_name, bucket_name, _object['ObjectPath']))
             defer.returnValue(True)
         defer.returnValue(False)
