@@ -136,7 +136,7 @@ class ObjectStorage(object):
     def read_object(self, bucket_name, object_name):
         _object = yield self.__object_path__(bucket_name, object_name)
         content = yield httpclient.fetch('http://127.0.0.1:8098/%s' % _object)
-        defer.returnValue(content)
+        defer.returnValue(content.body)
 
     @defer.inlineCallbacks
     def write_object(self, bucket_name, object_name, content):
