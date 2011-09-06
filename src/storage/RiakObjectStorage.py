@@ -45,7 +45,7 @@ class ObjectStorage(object):
         obj = yield bucket.get_binary(object_name)
         if obj.exists():
             log.msg('Found object %s on bucket %s' % (object_name, bucket_name), logLevel=logging.DEBUG)
-            defer.returnValue(True)
+            defer.returnValue(obj)
         defer.returnValue(False)
 
     @defer.inlineCallbacks
@@ -60,7 +60,7 @@ class ObjectStorage(object):
             if obj:
                 bucket_list.append({
                     'Name': bucket,
-                    'CreationDate': datetime.datetime.now(),
+                    'CreationDate': datetime.datetime.fromtimestamp(float(json.loads(obj.get_data()))),
                 })
         defer.returnValue(bucket_list)
 
@@ -124,10 +124,13 @@ class ObjectStorage(object):
         bucket = self.riak_client.bucket(bucket_name)
         _object = yield bucket.get_binary(object_name)
         if _object.exists():
+            log.msg('Stating object %s fron bucket %s' % (object_name, bucket_name))
+            _object = json.loads(_object.get_data())
+            log.msg(_object)
             _stat =  yield {
-                                'LastModified': datetime.datetime.utcnow(), 
-                                'CreationDate': datetime.datetime.utcnow(),
-                                'Size': len('lelelelele')
+                                'LastModified': datetime.datetime.fromtimestamp(float(_object['LastModified'])),
+                                'CreationDate': datetime.datetime.fromtimestamp(float(_object['CreationDate'])),
+                                'Size': _object['Size']
                            }
             defer.returnValue(_stat)
         defer.returnValue(False)
@@ -140,21 +143,34 @@ class ObjectStorage(object):
 
     @defer.inlineCallbacks
     def write_object(self, bucket_name, object_name, content):
-        bucket = self.riak_client.bucket(bucket_name)
         _object = yield self.__object_path__(bucket_name, object_name)
-        status = yield httpclient.fetch('http://127.0.0.1:8098/%s' % _object, method="PUT", postdata=content, headers={"Content-Type": ["application/unknown"]})
+        _stat_obj = yield self.is_object(bucket_name, object_name)
+        creation_date = None
+        if _stat_obj:
+            _stat_obj = json.loads(_stat_obj.get_data())
+            creation_date = _stat_obj['CreationDate']
+
+        #status = yield httpclient.fetch('http://127.0.0.1:8098/%s' % _object, method="PUT", postdata=content, headers={"Content-Type": ["application/unknown"]})
+        status = yield httpclient.fetch('http://127.0.0.1:8098/luwak', method="POST", postdata=content, headers={"Content-Type": ["application/unknown"]})
         log.msg('Response Headers from luwak %s' % status.headers)
         log.msg('Response Body from luwak %s' % status.body)
         log.msg('Status Code from luwak %s' % status.code)
+        log.msg('Status Length from luwak %s' % status.length)
+        _object = status.headers['Location'][0] 
         log.msg('Object location on luwak %s' % _object)
         stat = { 
-                    'CreationDate': str(time.mktime(datetime.datetime.now().timetuple())),
-                    'ObjectPath': _object
+                    'CreationDate': creation_date or str(time.mktime(datetime.datetime.now().timetuple())),
+                    'LastModified': str(time.mktime(datetime.datetime.now().timetuple())),
+                    'ObjectPath': _object,
+                    'Size': 'Not Implemented'
                }
+        bucket = self.riak_client.bucket(bucket_name)
         obj = bucket.new_binary(object_name, json.dumps(stat))
         yield obj.store()
         del(obj)
         log.msg('Created object %s on bucket %s' % (object_name, bucket_name))
+        if _stat_obj:
+            status = yield httpclient.fetch('http://127.0.0.1:8098/%s' % _stat_obj['ObjectPath'], method="DELETE")
         defer.returnValue(True)
 
     @defer.inlineCallbacks
@@ -162,7 +178,9 @@ class ObjectStorage(object):
         bucket = self.riak_client.bucket(bucket_name)
         obj = yield bucket.get_binary(object_name)
         if obj.exists():
+            _object = json.loads(obj.get_data())
+            status = yield httpclient.fetch('http://127.0.0.1:8098/%s' % _object['ObjectPath'], method="DELETE")
             obj.delete()
-            log.msg('Deleted object %s on bucket %s' % (object_name, bucket_name))
+            log.msg('Deleted object %s from bucket %s on %s' % (object_name, bucket_name, _object['ObjectPath']))
             defer.returnValue(True)
         defer.returnValue(False)
