@@ -121,7 +121,6 @@ class ObjectHandler(BaseRequestHandler):
         self.finish(_object)
 
     @defer.inlineCallbacks
-    @web.asynchronous
     def put(self, bucket_name, object_name):
         log.msg('Writing object %s on bucket %s' % (object_name, bucket_name))
         object_name = urllib.unquote(object_name)
