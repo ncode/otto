@@ -1,4 +1,5 @@
 # Otto - S3 Clone on top of cyclone
+* supporting fs and riak backends for object storage
 
 ## Requirements:
 
@@ -6,6 +7,15 @@
 * txriak - https://bitbucket.org/asi/txriak
 
 ## Usage:
+### Configuringa otto:
+
+    $ vim otto.cfg
+    [otto]
+    Port = 4000
+    #ObjectStorage = storage.FsObjectStorage
+    ObjectStorage = storage.RiakObjectStorage
+    tmp_directory = /tmp/otto
+
 ### Running otto:
 
     $ twistd -ny mann.tac
