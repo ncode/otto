@@ -1,4 +1,5 @@
 import os
+import sys
 import json
 import time
 import bisect
@@ -13,7 +14,7 @@ class ObjectStorage(object):
     def __init__(self):
         log.msg('RiakObjectStorage.ObjectStorage loaded')
         self.riak_client = riak.RiakClient()
-        self._private = ['luwak_node']
+        self._private = ['luwak_node', 'deleted_files']
 
     @defer.inlineCallbacks
     def __object_path__(self, bucket_name, object_name):
@@ -152,7 +153,6 @@ class ObjectStorage(object):
             _stat_obj = json.loads(_stat_obj.get_data())
             creation_date = _stat_obj['CreationDate']
 
-        #status = yield httpclient.fetch('http://127.0.0.1:8098/%s' % _object, method="PUT", postdata=content, headers={"Content-Type": ["application/unknown"]})
         status = yield httpclient.fetch('http://127.0.0.1:8098/luwak', method="POST", postdata=content, headers={"Content-Type": ["application/unknown"]})
         log.msg('Response Headers from luwak %s' % status.headers)
         log.msg('Response Body from luwak %s' % status.body)
@@ -164,7 +164,7 @@ class ObjectStorage(object):
                     'CreationDate': creation_date or str(time.mktime(datetime.datetime.now().timetuple())),
                     'LastModified': str(time.mktime(datetime.datetime.now().timetuple())),
                     'ObjectPath': _object,
-                    'Size': 'Not Implemented'
+                    'Size': sys.getsizeof(content)
                }
         bucket = self.riak_client.bucket(bucket_name)
         obj = bucket.new_binary(object_name, json.dumps(stat))
@@ -172,6 +172,16 @@ class ObjectStorage(object):
         del(obj)
         log.msg('Created object %s on bucket %s' % (object_name, bucket_name))
         if _stat_obj:
+            bucket = self.riak_client.bucket('deleted_objects')
+            stat = {
+                        'DeletetionDate': creation_date or str(time.mktime(datetime.datetime.now().timetuple())),
+                        'ObjectPath': _stat_obj['ObjectPath'].split('/')[-1],
+                        'FromBucket': bucket_name
+                   }
+            log.msg('Old object location from bucket %s in luwak %s' % (bucket_name, _stat_obj['ObjectPath']))
+            obj = bucket.new_binary(_stat_obj['ObjectPath'].split('/')[-1], json.dumps(stat))
+            yield obj.store()
+            del(obj)   
             status = yield httpclient.fetch('http://127.0.0.1:8098/%s' % _stat_obj['ObjectPath'], method="DELETE")
         defer.returnValue(True)
 
