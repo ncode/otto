@@ -14,7 +14,7 @@
     Port = 4000
     #ObjectStorage = storage.FsObjectStorage
     ObjectStorage = storage.RiakObjectStorage
-    tmp_directory = /tmp/otto
+    #tmp_directory = /tmp/otto
 
 ### Running otto:
 
@@ -35,7 +35,7 @@
     $ curl --request DELETE "http://localhost:4000/otto/otto.py"
     $ curl --request DELETE "http://localhost:4000/otto/"
     
-# Project Status: Experimental
+# Project Status: Almost testing
 
 Base on https://github.com/gleicon/3s and
 http://github.com/facebook/tornado/raw/master/tornado/s3server.py
