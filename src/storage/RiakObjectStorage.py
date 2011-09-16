@@ -172,12 +172,14 @@ class ObjectStorage(object):
         del(obj)
         log.msg('Created object %s on bucket %s' % (object_name, bucket_name))
         if _stat_obj:
-            bucket = self.riak_client.bucket('deleted_files')
+            bucket = self.riak_client.bucket('deleted_objects')
             stat = {
                         'DeletetionDate': creation_date or str(time.mktime(datetime.datetime.now().timetuple())),
-                        'ObjectPath': _stat_obj['ObjectPath'],
+                        'ObjectPath': _stat_obj['ObjectPath'].split('/')[-1],
+                        'FromBucket': bucket_name
                    }
-            obj = bucket.new_binary(object_name, json.dumps(stat))
+            log.msg('Old object location from bucket %s in luwak %s' % (bucket_name, _stat_obj['ObjectPath']))
+            obj = bucket.new_binary(_stat_obj['ObjectPath'].split('/')[-1], json.dumps(stat))
             yield obj.store()
             del(obj)   
             status = yield httpclient.fetch('http://127.0.0.1:8098/%s' % _stat_obj['ObjectPath'], method="DELETE")
