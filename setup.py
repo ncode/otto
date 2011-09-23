@@ -3,7 +3,7 @@
 from setuptools import setup
 
 setup(name='otto',
-    version='0.0.2',
+    version='0.0.3',
     description='S3 Clone on top of cyclone',
     author='Juliano Martinez',
     author_email='juliano@martinez.io',

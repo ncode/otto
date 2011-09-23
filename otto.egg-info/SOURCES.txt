@@ -1,0 +1,10 @@
+setup.py
+otto.egg-info/PKG-INFO
+otto.egg-info/SOURCES.txt
+otto.egg-info/dependency_links.txt
+otto.egg-info/requires.txt
+otto.egg-info/top_level.txt
+src/lib/__init__.py
+src/storage/FsObjectStorage.py
+src/storage/RiakObjectStorage.py
+src/storage/__init__.py

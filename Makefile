@@ -21,7 +21,7 @@ buildrpm:
 	$(PYTHON) setup.py bdist_rpm --post-install=rpm/postinstall --pre-uninstall=rpm/preuninstall
 
 builddeb:
-	$(PYTHON) setup.py --command-packages=stdeb.command sdist_dsc --extra-cfg-file=$(PROJECT).cfg bdist_deb
+	$(PYTHON) setup.py --command-packages=stdeb.command sdist_dsc --extra-cfg-file=settings.cfg bdist_deb
 
 clean:
 	$(PYTHON) setup.py clean
