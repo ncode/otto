@@ -4,7 +4,7 @@ import otto
 import ConfigParser
 from twisted.application import service, internet
 
-config_file = 'config/otto.cfg'
+config_file = '/etc/otto.cfg'
 if not os.path.isfile(config_file):
     print "Problem: %s not found" % config_file
     sys.exit(1)

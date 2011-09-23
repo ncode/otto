@@ -24,8 +24,8 @@ class S3Application(web.Application):
         self.tmp_directory = tmp_directory
         if not os.path.exists(self.tmp_directory):
             os.makedirs(self.tmp_directory)
-        storage = __import__(ObjectStorage)
-        self.storage = getattr(storage, ObjectStorage.split('.')[1]).ObjectStorage()
+        exec("from otto.storage import %s as ObjectStorage" % ObjectStorage)
+        self.storage = ObjectStorage.ObjectStorage()        
 
 class BaseRequestHandler(web.RequestHandler):
     def render_xml(self, value):
