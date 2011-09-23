@@ -3,7 +3,7 @@
 from setuptools import setup
 
 setup(name='otto',
-    version='0.0.1',
+    version='0.0.2',
     description='S3 Clone on top of cyclone',
     author='Juliano Martinez',
     author_email='juliano@martinez.io',
@@ -15,6 +15,9 @@ setup(name='otto',
         'otto.storage': 'src/storage',
     },
     data_files=[
+        ('/etc', ['src/config/otto.cfg']),
+        ('/etc/default', ['src/default/otto']),
+        ('/etc/init.d', ['src/init/otto.debian']),
         ('/etc', ['src/config/otto.cfg']),
         ('/usr/sbin', ['src/otto.tac']),
     ]

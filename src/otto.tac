@@ -11,7 +11,16 @@ if not os.path.isfile(config_file):
 
 config = ConfigParser.RawConfigParser()
 config.read(config_file)
-Port = config.getint('otto','Port')
+
+
+if "--pidfile" in sys.argv[5]:
+    try:
+        Port = int(sys.argv[5].split("-")[-1])
+    except:
+        Port = config.getint('otto','Port')
+else:
+    Port = config.getint('otto','Port')
+
 ObjectStorage = config.get('otto', 'ObjectStorage')
 tmp_directory = config.get('otto', 'tmp_directory')
 
