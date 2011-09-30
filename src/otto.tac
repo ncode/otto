@@ -22,8 +22,12 @@ else:
     Port = config.getint('otto','Port')
 
 ObjectStorage = config.get('otto', 'ObjectStorage')
-tmp_directory = config.get('otto', 'tmp_directory')
+storage_config = {}
+
+if config.has_section(ObjectStorage):
+	for key, value in config.items(ObjectStorage):
+		storage_config[key] = value
 
 application = service.Application("Otto Daemon")
-srv = internet.TCPServer(Port, otto.S3Application(tmp_directory=tmp_directory, ObjectStorage=ObjectStorage))
+srv = internet.TCPServer(Port, otto.S3Application(ObjectStorage, storage_config))
 srv.setServiceParent(application)

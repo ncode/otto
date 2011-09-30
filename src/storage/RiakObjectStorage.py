@@ -11,7 +11,7 @@ from twisted.python import log
 from twisted.internet import defer
 
 class ObjectStorage(object):
-    def __init__(self):
+    def __init__(self, storage_config = {}):
         log.msg('RiakObjectStorage.ObjectStorage loaded')
         self.riak_client = riak.RiakClient()
         self._private = ['luwak_node', 'deleted_files']

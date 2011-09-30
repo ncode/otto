@@ -5,9 +5,11 @@ from twisted.python import log
 from twisted.internet import defer
 
 class ObjectStorage(object):
-    def __init__(self):
+    def __init__(self, config = {}):
         log.msg('FsObjectStorage.ObjectStorage loaded')
-        self.directory = '/tmp/s3'
+        if "directory" not in config:
+            config["directory"] = "/tmp/otto"
+        self.directory = config["directory"]
 
     @defer.inlineCallbacks
     def __object_path__(self, bucket_name, object_name = None):

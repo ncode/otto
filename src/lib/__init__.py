@@ -15,17 +15,14 @@ import sys
 import os
 
 class S3Application(web.Application):
-    def __init__(self, tmp_directory, ObjectStorage):
+    def __init__(self, storage, storage_config = {}):
         web.Application.__init__(self, [
             (r"/", RootHandler),
             (r"/([^/]+)/(.+)", ObjectHandler),
             (r"/([^/]+)/", BucketHandler),
         ])
-        self.tmp_directory = tmp_directory
-        if not os.path.exists(self.tmp_directory):
-            os.makedirs(self.tmp_directory)
-        exec("from otto.storage import %s as ObjectStorage" % ObjectStorage)
-        self.storage = ObjectStorage.ObjectStorage()        
+        exec("from otto.storage import %s as ObjectStorage" % storage)
+        self.storage = ObjectStorage.ObjectStorage(storage_config)
 
 class BaseRequestHandler(web.RequestHandler):
     def render_xml(self, value):
