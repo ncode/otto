@@ -19,7 +19,7 @@ class S3Application(web.Application):
         web.Application.__init__(self, [
             (r"/", RootHandler),
             (r"/([^/]+)/(.+)", ObjectHandler),
-            (r"/([^/]+)/", BucketHandler),
+            (r"/([^/]+)[/]?", BucketHandler),
         ])
         exec("from otto.storage import %s as ObjectStorage" % storage)
         self.storage = ObjectStorage.ObjectStorage(storage_config)
