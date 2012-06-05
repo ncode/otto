@@ -18,7 +18,7 @@
 
 ### Running otto:
 
-    $ twistd -ny mann.tac
+    $ twistd -ny otto.tac
 
 ### Write:
 

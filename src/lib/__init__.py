@@ -13,6 +13,8 @@ import datetime
 import urllib
 import sys
 import os
+from hashlib import md5
+import base64
 
 class S3Application(web.Application):
     def __init__(self, storage, storage_config = {}):
@@ -121,13 +123,18 @@ class ObjectHandler(BaseRequestHandler):
     def put(self, bucket_name, object_name):
         log.msg('Writing object %s on bucket %s' % (object_name, bucket_name))
         object_name = urllib.unquote(object_name)
+        body = self.request.body
+        m = md5(body)
+        etag = m.hexdigest()
+        log.msg(etag)
+        self.set_header("ETag", etag)
         status = yield self.application.storage.is_bucket(bucket_name)
         if not status:
             raise web.HTTPError(404)
         status = yield self.application.storage.is_bucket(bucket_name, object_name)
         if status:
             raise web.HTTPError(403)
-        self.application.storage.write_object(bucket_name, object_name, self.request.body)
+        self.application.storage.write_object(bucket_name, object_name, body)
         self.finish()
 
     @defer.inlineCallbacks
