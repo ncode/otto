@@ -127,7 +127,7 @@ class ObjectHandler(BaseRequestHandler):
         m = md5(body)
         etag = m.hexdigest()
         log.msg(etag)
-        self.set_header("ETag", etag)
+        self.set_header("ETag", '"%s"' % etag)
         status = yield self.application.storage.is_bucket(bucket_name)
         if not status:
             raise web.HTTPError(404)
