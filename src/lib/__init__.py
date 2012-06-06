@@ -9,12 +9,11 @@ from twisted.internet import defer
 from twisted.python import log
 from cyclone import escape
 from cyclone import web
-import datetime
-import urllib
-import sys
-import os
+from cyclone import redis
+
+import datetime, urllib, sys, os, base64
 from hashlib import md5
-import base64
+import functools
 
 class S3Application(web.Application):
     def __init__(self, storage, storage_config = {}):
@@ -25,6 +24,8 @@ class S3Application(web.Application):
         ])
         exec("from otto.storage import %s as ObjectStorage" % storage)
         self.storage = ObjectStorage.ObjectStorage(storage_config)
+        # TODO: split from redis into generic authorization class, expose config settings
+        self.auth_db = redis.lazyConnectionPool() 
 
 class BaseRequestHandler(web.RequestHandler):
     def render_xml(self, value):
@@ -54,6 +55,37 @@ class BaseRequestHandler(web.RequestHandler):
                     parts.append('</%s>' % escape.utf8(name))
         else:
             raise Exception("Unknown S3 value type %r", value)
+    
+    def _calculate_hash(self):
+        pass
+
+    def _sign_string(self):
+        pass
+    
+    def _authenticate(self, access_key, signed_string):
+        return True
+
+def Authenticator(method):
+    @functools.wraps(method)
+    def wrapper(self, *args, **kwargs):
+        try:
+            auth_hdr = self.request.headers["Authorization"]
+            if auth_hdr is not None:
+                auth_type, auth_data = auth_hdr.split()
+            assert auth_type == "AWS"
+            access_key, signed_hash = auth_data.split(":", 1)
+            log.msg(self._authenticate(access_key, signed_hash))
+        except Exception, e:
+            log.msg(e)
+            # All arguments are optional. Defaults are:
+            # log_message=None, auth_type="Basic", realm="Restricted Access"
+            raise cyclone.web.HTTPAuthenticationRequired(
+                                log_message="Authentication failed!",
+                                auth_type="AWS", realm="otto")
+        else:
+            #self._current_user = usr
+            return method(self, *args, **kwargs)
+    return wrapper
 
 class RootHandler(BaseRequestHandler):
     @defer.inlineCallbacks
@@ -82,6 +114,7 @@ class BucketHandler(BaseRequestHandler):
 
     @defer.inlineCallbacks
     @web.asynchronous
+    @Authenticator
     def put(self, bucket_name):
         log.msg('Creating bucket %s' % bucket_name)
         status = yield self.application.storage.is_bucket(bucket_name)
@@ -126,7 +159,6 @@ class ObjectHandler(BaseRequestHandler):
         body = self.request.body
         m = md5(body)
         etag = m.hexdigest()
-        log.msg(etag)
         self.set_header("ETag", '"%s"' % etag)
         status = yield self.application.storage.is_bucket(bucket_name)
         if not status:
