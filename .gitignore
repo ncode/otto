@@ -1,0 +1,6 @@
+build
+test
+*.pyc
+*~
+*.pid
+/twisted
